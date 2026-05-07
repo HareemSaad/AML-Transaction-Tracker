@@ -2,7 +2,8 @@
 // kycTier / isPEP / isBlocked / openedAt. The subgraph computes per-rule
 // ComplianceFlag entities that the backend ingests into Alert.
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["omitApi"]
 }
 
 datasource db {
