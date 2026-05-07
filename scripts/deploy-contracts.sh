@@ -20,6 +20,18 @@ if [[ "${FORCE_DEPLOY:-0}" != "1" && -n "${REGISTRY_ADDRESS:-}" ]]; then
   CODE=$(cast code "$REGISTRY_ADDRESS" --rpc-url "$RPC_URL" 2>/dev/null || echo "0x")
   if [[ "$CODE" != "0x" && -n "$CODE" ]]; then
     log "REGISTRY_ADDRESS=$REGISTRY_ADDRESS already has bytecode — skipping deploy (set FORCE_DEPLOY=1 to override)"
+    # Regenerate local.json from .env so deploy-subgraph and aml-demo always
+    # find the file even after down.sh has wiped graph/postgres state.
+    DEPLOY_FILE="$REPO_ROOT/contracts/deployments/local.json"
+    if [[ ! -f "$DEPLOY_FILE" ]]; then
+      log "regenerating $DEPLOY_FILE from .env addresses"
+      mkdir -p "$(dirname "$DEPLOY_FILE")"
+      printf '{\n  "network": "local",\n  "chainId": 31337,\n  "deployBlock": %s,\n  "registry": "%s",\n  "stablecoin": "%s",\n  "onramp": "%s"\n}\n' \
+        "${DEPLOY_BLOCK:-0}" \
+        "${REGISTRY_ADDRESS}" \
+        "${STABLECOIN_ADDRESS:-}" \
+        "${ONRAMP_ADDRESS:-}" > "$DEPLOY_FILE"
+    fi
     exit 0
   fi
 fi

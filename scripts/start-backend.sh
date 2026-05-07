@@ -33,6 +33,10 @@ if [[ "${BACKGROUND:-0}" == "1" ]]; then
     kill "$(cat "$PID_FILE")" || true
     sleep 1
   fi
+  # Kill any orphan nest watcher + port listeners left from a prior run.
+  pkill -f "nest start" 2>/dev/null || true
+  lsof -nP -iTCP:"${BACKEND_PORT:-3000}" -sTCP:LISTEN -t 2>/dev/null | xargs kill 2>/dev/null || true
+  sleep 1
   : > "$LOG_FILE"
   nohup pnpm start:dev >>"$LOG_FILE" 2>&1 &
   echo $! > "$PID_FILE"
