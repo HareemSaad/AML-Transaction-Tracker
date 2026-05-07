@@ -16,7 +16,11 @@ if [[ ! -d node_modules ]]; then
 fi
 
 log "running prisma migrate"
-pnpm prisma migrate deploy 2>/dev/null || pnpm prisma db push --skip-generate
+if [[ -d prisma/migrations ]]; then
+  pnpm prisma migrate deploy
+else
+  pnpm prisma db push --skip-generate
+fi
 
 log "generating prisma client"
 pnpm prisma generate
