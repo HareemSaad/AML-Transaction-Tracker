@@ -1,0 +1,34 @@
+node_modules/
+dist/
+build/
+.pnp.*
+.pnpm-store/
+
+# env
+.env
+.env.local
+
+# anvil
+.anvil-state.json
+.anvil.log
+.anvil.pid
+
+# subgraph
+subgraph/generated/
+subgraph/build/
+subgraph/subgraph.yaml
+
+# backend
+backend/dist/
+backend/.nest/
+.backend.log
+.backend.pid
+
+# contracts (tracked as its own git repo)
+contracts/
+
+# docker volumes
+infra/data/
+
+# tooling
+.claude/

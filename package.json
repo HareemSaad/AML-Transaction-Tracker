@@ -1,0 +1,19 @@
+{
+  "name": "regulated",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "workspaces": [
+    "subgraph",
+    "backend"
+  ],
+  "scripts": {
+    "anvil": "bash scripts/start-anvil.sh",
+    "graph:up": "bash scripts/start-graph-stack.sh",
+    "graph:down": "docker compose -f infra/docker-compose.yml down",
+    "subgraph:deploy": "bash scripts/deploy-subgraph.sh",
+    "backend": "bash scripts/start-backend.sh",
+    "up": "bash scripts/up.sh",
+    "down": "bash scripts/down.sh"
+  }
+}
