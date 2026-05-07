@@ -1,0 +1,2 @@
+# ABI JSON files are written by Foundry when contracts are compiled.
+# `scripts/deploy-contracts.sh` copies them here before `graph codegen`.

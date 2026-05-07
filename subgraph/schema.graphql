@@ -1,0 +1,91 @@
+type Wallet @entity {
+  id: Bytes!                     # custodial EOA (or external EOA seen in transfers)
+  kycTier: Int!
+  isPEP: Boolean!
+  isBlocked: Boolean!
+  isCustodial: Boolean!
+  openedAt: BigInt!
+  piiHash: Bytes
+  outgoingCount: BigInt!
+  outgoingVolume: BigInt!
+  incomingCount: BigInt!
+  incomingVolume: BigInt!
+  flags: [ComplianceFlag!]! @derivedFrom(field: "wallet")
+  knownCounterparties: [KnownCounterparty!]! @derivedFrom(field: "wallet")
+  dailyStats: [WalletDailyStats!]! @derivedFrom(field: "wallet")
+  structuringWindow: StructuringWindow @derivedFrom(field: "wallet")
+}
+
+type Transfer @entity(immutable: true) {
+  id: Bytes!                     # txHash-logIndex
+  from: Wallet!
+  to: Wallet!
+  amount: BigInt!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  txHash: Bytes!
+  logIndex: BigInt!
+  fromIsCustodial: Boolean!
+  toIsCustodial: Boolean!
+  isLargeTransaction: Boolean!     # Rule 1
+  isPEPTransaction: Boolean!       # Rule 9
+  isNewAccountTransaction: Boolean! # Rule 12
+}
+
+type ComplianceFlag @entity(immutable: true) {
+  id: Bytes!                     # txHash-logIndex-rule
+  wallet: Wallet!
+  ruleId: Int!                   # 1, 2, 5, 7, 8, 9, 12
+  severity: String!              # LOW | MEDIUM | HIGH | CRITICAL
+  amount: BigInt
+  txHash: Bytes!
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  evidence: String!              # JSON string with rule-specific context
+}
+
+type RegistryConfig @entity {
+  id: Bytes!                     # singleton: registry address
+  ctrThreshold: BigInt!
+  newAccountWindow: BigInt!
+  updatedAt: BigInt!
+}
+
+# ─── Aggregates used to compute rule 2/5/7/8 ────────────────────────────────
+
+# Rule 5 — per-wallet per-day counters; baseline = mean of last 7 prior days.
+type WalletDailyStats @entity {
+  id: Bytes!                     # walletAddr-dayIndex (dayIndex = floor(ts/86400))
+  wallet: Wallet!
+  dayIndex: BigInt!
+  outgoingCount: BigInt!
+  outgoingVolume: BigInt!
+}
+
+# Rule 7 — first-time non-custodial recipients are flagged for tenured wallets.
+type KnownCounterparty @entity {
+  id: Bytes!                     # walletAddr-counterparty
+  wallet: Wallet!
+  counterparty: Bytes!
+  firstSeenAt: BigInt!
+  txCount: BigInt!
+  totalAmount: BigInt!
+}
+
+# Rule 2 — sliding-window log of recent sub-threshold transfers per wallet.
+type StructuringWindow @entity {
+  id: Bytes!                     # walletAddr (singleton per wallet)
+  wallet: Wallet!
+  amounts: [BigInt!]!
+  timestamps: [BigInt!]!
+  totalAmount: BigInt!
+}
+
+# Rule 8 — track recent inflows to custodial wallets from a single source.
+type SourceFanOut @entity {
+  id: Bytes!                     # sourceAddr
+  source: Bytes!
+  recentReceivers: [Bytes!]!
+  recentAmounts: [BigInt!]!
+  recentBlocks: [BigInt!]!
+}

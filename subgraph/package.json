@@ -1,0 +1,17 @@
+{
+  "name": "@regulated/subgraph",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "render": "node scripts/render-manifest.mjs",
+    "codegen": "graph codegen",
+    "build": "graph build",
+    "create-local": "graph create --node http://localhost:8020 ${SUBGRAPH_NAME:-bank/aml}",
+    "remove-local": "graph remove --node http://localhost:8020 ${SUBGRAPH_NAME:-bank/aml}",
+    "deploy-local": "graph deploy --version-label v0.0.1 --node http://localhost:8020 --ipfs http://localhost:5001 ${SUBGRAPH_NAME:-bank/aml}"
+  },
+  "devDependencies": {
+    "@graphprotocol/graph-cli": "0.85.0",
+    "@graphprotocol/graph-ts": "0.35.1"
+  }
+}
