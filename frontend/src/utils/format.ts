@@ -13,16 +13,19 @@ export function shortAddr(addr: string): string {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }
 
+const DECIMALS = BigInt('1000000') // bPKR has 6 decimals
+
 export function formatAmount(raw?: string | null): string {
   if (!raw) return '—'
   try {
     const n = BigInt(raw)
-    if (n >= BigInt('1000000000000000')) {
-      const whole = n / BigInt('1000000000000000000')
-      const frac = (n % BigInt('1000000000000000000')) / BigInt('100000000000000')
-      return `${whole.toLocaleString()}.${frac.toString().padStart(4, '0').slice(0, 2)} bPKR`
+    const whole = n / DECIMALS
+    const frac = n % DECIMALS
+    if (frac === BigInt(0)) {
+      return `${whole.toLocaleString()} bPKR`
     }
-    return `${n.toLocaleString()} bPKR`
+    const fracStr = frac.toString().padStart(6, '0').replace(/0+$/, '').slice(0, 2)
+    return `${whole.toLocaleString()}.${fracStr} bPKR`
   } catch {
     return `${raw} bPKR`
   }
