@@ -1,0 +1,65 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: graph_node
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+    command:
+      - "postgres"
+      - "-cshared_preload_libraries=pg_stat_statements"
+      - "-cmax_connections=200"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  ipfs:
+    image: ipfs/kubo:v0.30.0
+    restart: unless-stopped
+    ports:
+      - "${IPFS_API_PORT:-5001}:5001"
+      - "${IPFS_GATEWAY_PORT:-8080}:8080"
+    volumes:
+      - ./data/ipfs:/data/ipfs
+
+  graph-node:
+    image: graphprotocol/graph-node:v0.36.1
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ipfs:
+        condition: service_started
+    ports:
+      - "${GRAPH_NODE_HTTP_PORT:-8000}:8000"   # query
+      - "${GRAPH_NODE_WS_PORT:-8001}:8001"     # subscriptions
+      - "${GRAPH_NODE_ADMIN_PORT:-8020}:8020"  # JSON-RPC admin (graph deploy)
+      - "${GRAPH_NODE_INDEX_PORT:-8030}:8030"  # indexer status
+      - "${GRAPH_NODE_METRICS_PORT:-8040}:8040"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      postgres_host: postgres
+      postgres_user: postgres
+      postgres_pass: postgres
+      postgres_db: graph_node
+      ipfs: "ipfs:5001"
+      # graph-node expects "<network-name>:<rpc-url>". We use the literal name "mainnet"
+      # since the anvil fork preserves mainnet contract state, and the subgraph manifest
+      # declares network: mainnet. Anvil runs on the host, reachable via host.docker.internal.
+      ethereum: "mainnet:http://host.docker.internal:${ANVIL_PORT:-8545}"
+      GRAPH_LOG: info
+      ETHEREUM_REORG_THRESHOLD: 1
+      ETHEREUM_ANCESTOR_COUNT: 1
+      GRAPH_ETHEREUM_GENESIS_BLOCK_NUMBER: "0"
+      # Allow indexing very recent / not-yet-finalized blocks on the local fork.
+      GRAPH_ETHEREUM_BLOCK_INGESTOR_MAX_CONCURRENT_JSON_RPC_CALLS_FOR_TXN_RECEIPTS: "10"
