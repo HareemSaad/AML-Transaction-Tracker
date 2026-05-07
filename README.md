@@ -72,8 +72,9 @@ cp .env.example .env
 ## Bring up the stack
 
 ```
-pnpm install              # at repo root, installs subgraph + backend workspaces
+pnpm install              # at repo root, installs subgraph + backend + frontend workspaces
 ./scripts/up.sh
+pnpm frontend             # start the compliance dashboard at http://localhost:5173
 ```
 
 `up.sh` runs:
@@ -115,12 +116,40 @@ To wipe state:
 ./scripts/down.sh && rm -rf infra/data .anvil-state.json
 ```
 
+## Compliance Dashboard (frontend)
+
+A React + Vite + Tailwind UI served at `http://localhost:5173`.
+
+```
+pnpm frontend        # start dev server (proxies /api → :3000, /subgraph → :8000)
+```
+
+### Master Dashboard (`/master`) — compliance officer view
+
+- Live stats bar: Total Flags / Open / Critical / STR Filed (auto-refreshes every 15 s)
+- Filter bar: Status · Severity · Rule
+- Alerts table: Wallet · Customer · Rule · Amount · Severity · Status · Score · Time · Actions
+- Per-row Actions menu: Acknowledge / File STR
+- **Wallet Drawer** (click any wallet address):
+  - Full customer profile (KYC tier, nationality, DOB, occupation, source of funds)
+  - Risk score bar (LOW → CRITICAL)
+  - **Blacklist / Unblock** with inline confirmation (calls `POST /wallets/:id/block`)
+  - Alerts tab — all alerts for that wallet
+  - Transaction History tab — outgoing/incoming transfers from subgraph
+
+### User Dashboard (`/user`) — customer self-service
+
+- Search by wallet address
+- Customer profile card + compliance status bar
+- Transaction History and Compliance Alerts tabs (read-only)
+
 ## Layout
 
 ```
 contracts/    # Foundry — 3 contracts + Deploy.s.sol + 17 tests
 subgraph/     # graph-node indexer + 7-rule detection
 backend/      # NestJS — wallet creation, transfer signing, flag ingestion
+frontend/     # React + Vite + Tailwind compliance dashboard
 infra/        # docker-compose for postgres/ipfs/graph-node
 scripts/      # startup orchestration
 ```
