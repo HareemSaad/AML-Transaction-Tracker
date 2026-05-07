@@ -1,0 +1,100 @@
+// Backend storage. The on-chain ComplianceRegistry is the source of truth for
+// kycTier / isPEP / isBlocked / openedAt. The subgraph computes per-rule
+// ComplianceFlag entities that the backend ingests into Alert.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum KycTier {
+  NONE       // 0
+  BASIC      // 1
+  ENHANCED   // 2
+  CORPORATE  // 3
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  STR_FILED
+  DISMISSED
+}
+
+enum RiskBand {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// Custodial wallet = backend-generated EOA. The bank stores its private key
+// (encrypted at rest) and signs every transfer. Address is registered in the
+// on-chain ComplianceRegistry via registry.registerCustodial.
+model Wallet {
+  id                String   @id            // custodial EOA address (lowercased)
+  customerId        String                  // KYC subject identifier
+  fullName          String
+  passportNo        String   @unique
+  dob               DateTime
+  nationality       String
+  address           String
+  occupation        String?
+  sourceOfFunds     String?
+  kycTier           KycTier  @default(BASIC)
+  isPEP             Boolean  @default(false)
+  isBlocked         Boolean  @default(false)
+  piiHash           String                   // keccak256, mirrored on-chain
+  openedAt          DateTime
+  encryptedKey      String                   // AES-256-GCM (dev only)
+  encryptedKeyIv    String
+  encryptedKeyTag   String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  alerts            Alert[]
+
+  @@index([customerId])
+}
+
+model PEPRecord {
+  id           String   @id @default(cuid())
+  fullName     String
+  dob          DateTime?
+  country      String
+  source       String                  // "UN", "OFAC", "domestic_list", etc.
+  addedAt      DateTime @default(now())
+
+  @@index([fullName])
+}
+
+// One Alert per (subgraph ComplianceFlag id) — id mirrors the flag id so the
+// poller is idempotent.
+model Alert {
+  id          String      @id                 // mirrors subgraph ComplianceFlag.id (hex)
+  wallet      Wallet      @relation(fields: [walletId], references: [id])
+  walletId    String
+  ruleId      Int                           // 1, 2, 5, 7, 8, 9, 12
+  severity    String                        // LOW | MEDIUM | HIGH | CRITICAL
+  score       Int                           // PDF table points
+  amount      String?                       // wei-style decimal string
+  txHash      String
+  blockNumber String                        // BigInt as decimal string
+  timestamp   DateTime
+  evidence    Json
+  status      AlertStatus @default(OPEN)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([walletId, ruleId])
+  @@index([status])
+  @@index([blockNumber])
+}
+
+model SubgraphCursor {
+  id              String   @id @default("default")
+  lastTimestamp   BigInt   @default(0)        // unix-seconds; flags ordered by timestamp
+  updatedAt       DateTime @updatedAt
+}
