@@ -13,7 +13,7 @@ export function handleProfileSet(event: ProfileSet): void {
   w.isPEP = event.params.isPEP;
   w.piiHash = event.params.piiHash as Bytes;
   if (w.openedAt.equals(BigInt.zero())) {
-    w.openedAt = BigInt.fromU64(event.params.openedAt);
+    w.openedAt = event.params.openedAt;
   }
   w.isCustodial = true;
   w.save();
