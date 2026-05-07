@@ -24,8 +24,11 @@ backend/.nest/
 .backend.log
 .backend.pid
 
-# contracts (tracked as its own git repo)
-contracts/
+# contracts
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+contracts/deployments/local.json
 
 # docker volumes
 infra/data/
