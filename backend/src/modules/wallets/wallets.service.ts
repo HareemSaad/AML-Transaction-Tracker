@@ -26,6 +26,7 @@ const REGISTRY_ABI = [
   "function checkOutgoing(address wallet, uint256 amount) view returns (bool ok, string reason, bool isLarge, bool isPep, bool isNewAccount)",
   "function consumePepApproval(address wallet)",
   "function pepApprovals(address) view returns (uint256)",
+  "function setBlocked(address wallet, bool blocked)",
 ];
 const ERC20_ABI = [
   "function transfer(address to, uint256 amount) returns (bool)",
@@ -201,5 +202,19 @@ export class WalletsService {
       blockNumber: receipt?.blockNumber,
       flags: { isLarge: Boolean(isLarge), isPEP: Boolean(isPep), isNewAccount: Boolean(isNew) },
     };
+  }
+
+  // ─── Blacklist / unblock ──────────────────────────────────────────────────
+  async setBlocked(walletId: string, blocked: boolean) {
+    if (!this.registry) {
+      throw new InternalServerErrorException("on-chain not configured");
+    }
+    const w = await this.prisma.wallet.findUnique({ where: { id: walletId.toLowerCase() } });
+    if (!w) throw new NotFoundException(`wallet ${walletId} not found`);
+
+    const tx = await this.registry.setBlocked(w.id, blocked);
+    await tx.wait();
+    this.log.log(`wallet ${w.id} blocked=${blocked}`);
+    return { ok: true, walletId: w.id, blocked };
   }
 }

@@ -30,4 +30,13 @@ if [[ -f "$REPO_ROOT/.anvil.pid" ]] && kill -0 "$(cat "$REPO_ROOT/.anvil.pid")" 
   rm -f "$REPO_ROOT/.anvil.pid"
 fi
 
-log "stack down"
+log "wiping postgres data (graph_node + aml_backend)"
+rm -rf "$REPO_ROOT/infra/data/postgres"
+
+log "wiping ipfs data (pinned subgraph wasm)"
+rm -rf "$REPO_ROOT/infra/data/ipfs"
+
+log "removing stale deployment addresses"
+rm -f "$REPO_ROOT/contracts/deployments/local.json"
+
+log "stack down — all data sources cleared"

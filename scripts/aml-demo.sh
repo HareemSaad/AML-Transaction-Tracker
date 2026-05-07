@@ -226,7 +226,42 @@ ok "spike sent (25 > 6×3 = 18 → expect rule 5)"
 wait_for_rule "$CAROL" 5 45 || true
 
 # ─────────────────────────────────────────────────────────────────────────────
-banner "Phase 9  summary"
+banner "Phase 9  BLACKLIST — block Alice after the CTR violation, then prove her transfers are rejected"
+
+sub "blocking Alice ($ALICE) via compliance endpoint…"
+http_code=$(curl -sS -o /tmp/aml-demo-block.json -w '%{http_code}' \
+  -X POST "$BACKEND_URL/wallets/$ALICE/block?blocked=true")
+if [[ "$http_code" == "200" || "$http_code" == "201" ]]; then
+  ok "Alice blocked on-chain: $(jq -c '.' /tmp/aml-demo-block.json)"
+else
+  warn "block call returned HTTP $http_code: $(jq -c '.' /tmp/aml-demo-block.json 2>/dev/null || cat /tmp/aml-demo-block.json)"
+fi
+
+sub "attempting Alice → Bob 1,000 PKR  (should be REJECTED — BLOCKED)"
+if transfer "$ALICE" "$BOB" 1000 >/dev/null 2>&1; then
+  warn "transfer unexpectedly succeeded — blacklist not enforced"
+else
+  ok "transfer correctly rejected (checkOutgoing returned BLOCKED)"
+fi
+
+sub "unblocking Alice to verify the block is reversible…"
+http_code=$(curl -sS -o /tmp/aml-demo-unblock.json -w '%{http_code}' \
+  -X POST "$BACKEND_URL/wallets/$ALICE/block?blocked=false")
+if [[ "$http_code" == "200" || "$http_code" == "201" ]]; then
+  ok "Alice unblocked: $(jq -c '.' /tmp/aml-demo-unblock.json)"
+else
+  warn "unblock call returned HTTP $http_code"
+fi
+
+sub "retrying Alice → Bob 1,000 PKR  (should succeed after unblock)"
+if transfer "$ALICE" "$BOB" 1000 >/dev/null 2>&1; then
+  ok "transfer accepted — unblock confirmed"
+else
+  warn "transfer still rejected after unblock"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+banner "Phase 10  summary"
 sub "alert counts by rule:"
 count_by_rule
 echo

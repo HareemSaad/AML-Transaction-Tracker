@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, ParseBoolPipe, Query } from "@nestjs/common";
 import { WalletsService } from "./wallets.service";
 import { CreateWalletDto, TransferDto } from "./dto";
 
@@ -24,5 +24,14 @@ export class WalletsController {
   @Post(":id/transfer")
   transfer(@Param("id") id: string, @Body() dto: TransferDto) {
     return this.wallets.transfer(id, dto);
+  }
+
+  /** POST /wallets/:id/block?blocked=true|false  — compliance officer action */
+  @Post(":id/block")
+  block(
+    @Param("id") id: string,
+    @Query("blocked", new ParseBoolPipe({ optional: true })) blocked = true,
+  ) {
+    return this.wallets.setBlocked(id, blocked);
   }
 }
