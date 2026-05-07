@@ -21,11 +21,28 @@ export class SubgraphPoller {
     if (this.running) return;
     this.running = true;
     try {
-      const cursor = await this.prisma.subgraphCursor.upsert({
+      let cursor = await this.prisma.subgraphCursor.upsert({
         where: { id: CURSOR_ID },
         create: { id: CURSOR_ID, lastTimestamp: 0n },
         update: {},
       });
+
+      // Detect chain reset: if the subgraph's max-flag timestamp is below our
+      // cursor, anvil was restarted with a fresh fork and the cursor is stale.
+      // Rewind to 0 so the new run's flags get ingested.
+      if (cursor.lastTimestamp > 0n) {
+        const maxTs = await this.subgraph.maxFlagTimestamp();
+        if (maxTs !== null && maxTs < cursor.lastTimestamp) {
+          this.log.warn(
+            `chain reset detected (subgraph max ts=${maxTs} < cursor ${cursor.lastTimestamp}); rewinding cursor`,
+          );
+          cursor = await this.prisma.subgraphCursor.update({
+            where: { id: CURSOR_ID },
+            data: { lastTimestamp: 0n },
+          });
+        }
+      }
+
       const flags = await this.subgraph.flagsSince(cursor.lastTimestamp);
       if (flags.length === 0) return;
       this.log.debug(`ingesting ${flags.length} new flags since ts=${cursor.lastTimestamp}`);
@@ -52,7 +69,7 @@ export class SubgraphPoller {
       let evidence: unknown;
       try { evidence = JSON.parse(f.evidence); } catch { evidence = { raw: f.evidence }; }
 
-      await this.prisma.alert.upsert({
+      const result = await this.prisma.alert.upsert({
         where: { id: f.id },
         create: {
           id: f.id,
@@ -67,7 +84,15 @@ export class SubgraphPoller {
           evidence: evidence as object,
         },
         update: {},
+        select: { createdAt: true, timestamp: true },
       });
+      const isNew = result.createdAt.getTime() >= Date.now() - 5_000;
+      if (isNew) {
+        const amt = f.amount ? ` amount=${f.amount}` : "";
+        this.log.warn(
+          `🚨 RULE_${f.ruleId} [${f.severity}] wallet=${walletId}${amt} score=${RULE_POINTS[f.ruleId] ?? 0} tx=${f.txHash}`,
+        );
+      }
     }
   }
 }

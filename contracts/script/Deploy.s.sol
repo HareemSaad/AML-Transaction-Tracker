@@ -51,6 +51,14 @@ contract Deploy is Script {
         registry.setNewAccountCap(2, TIER2_NEW_CAP);
         registry.setNewAccountCap(3, TIER3_NEW_CAP);
 
+        // graph-node misses events emitted from the contract's constructor
+        // (same tx as contract creation). Re-emit CtrThresholdChanged and
+        // NewAccountWindowChanged in a regular block so the subgraph
+        // RegistryConfig populates correctly — without these, ctrThreshold
+        // reads as 0 in mappings and Rules 1 & 2 never fire.
+        registry.setCtrThreshold(CTR_THRESHOLD);
+        registry.setNewAccountWindow(NEW_ACCOUNT_WINDOW);
+
         vm.stopBroadcast();
 
         string memory json = string.concat(

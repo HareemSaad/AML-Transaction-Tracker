@@ -54,4 +54,13 @@ export class SubgraphClient {
     );
     return data.complianceFlags;
   }
+
+  async maxFlagTimestamp(): Promise<bigint | null> {
+    const q = gql`
+      { complianceFlags(first: 1, orderBy: timestamp, orderDirection: desc) { timestamp } }
+    `;
+    const data = await this.client.request<{ complianceFlags: { timestamp: string }[] }>(q);
+    if (data.complianceFlags.length === 0) return null;
+    return BigInt(data.complianceFlags[0].timestamp);
+  }
 }

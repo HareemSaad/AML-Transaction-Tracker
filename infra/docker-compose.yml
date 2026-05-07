@@ -63,3 +63,7 @@ services:
       GRAPH_ETHEREUM_GENESIS_BLOCK_NUMBER: "0"
       # Allow indexing very recent / not-yet-finalized blocks on the local fork.
       GRAPH_ETHEREUM_BLOCK_INGESTOR_MAX_CONCURRENT_JSON_RPC_CALLS_FOR_TXN_RECEIPTS: "10"
+      # Anvil-fork forwards eth_getLogs to the upstream RPC (Alchemy free tier),
+      # which caps log ranges at 10 blocks. Keep batches at 10 so requests succeed.
+      GRAPH_ETHEREUM_MAX_BLOCK_RANGE_SIZE: "10"
+      GRAPH_ETHEREUM_TARGET_TRIGGERS_PER_BLOCK_RANGE: "10"
