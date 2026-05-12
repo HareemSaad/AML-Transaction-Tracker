@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom'
-import { Shield, Search, Activity } from 'lucide-react'
+import { Shield, Search, Activity, Send } from 'lucide-react'
 
 const nav = [
   { to: '/master', icon: Shield, label: 'Compliance Hub' },
   { to: '/user', icon: Search, label: 'User Lookup' },
+  { to: '/transfer', icon: Send, label: 'Transfer Portal' },
 ]
 
 export default function Sidebar() {

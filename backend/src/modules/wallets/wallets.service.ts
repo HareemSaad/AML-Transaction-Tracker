@@ -10,6 +10,7 @@ import { ConfigService } from "@nestjs/config";
 import {
   Contract,
   JsonRpcProvider,
+  NonceManager,
   Wallet as EthersWallet,
   HDNodeWallet,
   keccak256,
@@ -41,7 +42,7 @@ const TIER_TO_NUM: Record<KycTier, number> = {
 export class WalletsService {
   private readonly log = new Logger(WalletsService.name);
   private readonly provider?: JsonRpcProvider;
-  private readonly operator?: EthersWallet;
+  private readonly operator?: NonceManager;
   private readonly registry?: Contract;
   private readonly stablecoin?: Contract;
   private readonly stablecoinAddress?: string;
@@ -67,7 +68,9 @@ export class WalletsService {
 
     if (this.registryAddress && this.stablecoinAddress && rpcUrl && pk) {
       this.provider = new JsonRpcProvider(rpcUrl);
-      this.operator = new EthersWallet(pk, this.provider);
+      // NonceManager tracks nonces client-side so consecutive txs (registerCustodial
+      // + gas top-up) don't collide when anvil mines instantly (block-time 0).
+      this.operator = new NonceManager(new EthersWallet(pk, this.provider));
       this.registry = new Contract(this.registryAddress, REGISTRY_ABI, this.operator);
       this.stablecoin = new Contract(this.stablecoinAddress, ERC20_ABI, this.operator);
       this.log.log(`registry=${this.registryAddress} stablecoin=${this.stablecoinAddress}`);

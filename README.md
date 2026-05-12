@@ -71,18 +71,109 @@ cp .env.example .env
 
 ## Bring up the stack
 
-```
-pnpm install              # at repo root, installs subgraph + backend + frontend workspaces
+```bash
+pnpm install              # repo root — installs subgraph + backend + frontend workspaces
 ./scripts/up.sh
-pnpm frontend             # start the compliance dashboard at http://localhost:5173
+pnpm frontend             # compliance dashboard at http://localhost:5173
 ```
 
-`up.sh` runs:
-1. `start-anvil.sh` → forks mainnet at `:8545` (persistent `.anvil-state.json`)
-2. `deploy-contracts.sh` → forge deploy + write `contracts/deployments/local.json`, copy ABIs, patch root `.env` (idempotent — skips if `REGISTRY_ADDRESS` already has bytecode; `FORCE_DEPLOY=1` to override)
-3. `start-graph-stack.sh` → docker compose up postgres + ipfs + graph-node
-4. `deploy-subgraph.sh` → render manifest + codegen + deploy
-5. `start-backend.sh` → prisma migrate + NestJS dev server on `:3000`
+Then seed the demo wallets (creates 6 custodial wallets with varied profiles and funds them):
+
+```bash
+./scripts/seed-wallets.sh
+```
+
+---
+
+## Scripts
+
+### Overview
+
+| Script | What it does |
+|---|---|
+| `up.sh` | Start the full stack in order (anvil → contracts → graph → subgraph → backend) |
+| `down.sh` | Stop all services; preserves chain state and graph-node index by default |
+| `start-anvil.sh` | Fork mainnet via anvil, save/restore state from `.anvil-state.json` |
+| `deploy-contracts.sh` | `forge deploy` → write `deployments/local.json`, copy ABIs, patch `.env`. Idempotent — skips if registry already has bytecode |
+| `start-graph-stack.sh` | `docker compose up` for postgres + ipfs + graph-node |
+| `deploy-subgraph.sh` | Render `subgraph.yaml` from `local.json`, codegen, build, deploy to local graph-node |
+| `start-backend.sh` | `prisma migrate deploy` + NestJS dev server on `:3000` |
+| `seed-wallets.sh` | Create 6 demo custodial wallets (varied KYC tiers, one PEP) and fund each via onramp |
+| `aml-demo.sh` | End-to-end AML scenario script — fires rules 1, 2, 5 and demonstrates blacklisting |
+
+### Common workflows
+
+**Normal restart** — chain and graph-node index are preserved, resumes instantly:
+```bash
+./scripts/down.sh && ./scripts/up.sh
+```
+
+**Full clean slate** — wipes postgres (graph-node + backend DB), ipfs, and anvil state:
+```bash
+FULL_TEARDOWN=1 ./scripts/down.sh
+rm -f .anvil-state.json
+./scripts/up.sh
+./scripts/seed-wallets.sh   # re-seed wallets after a full wipe
+```
+
+**Redeploy contracts only** (e.g. after a Solidity change):
+```bash
+FORCE_DEPLOY=1 ./scripts/deploy-contracts.sh
+./scripts/deploy-subgraph.sh   # subgraph must be redeployed if ABI changed
+```
+
+**Redeploy subgraph only** (e.g. after editing `subgraph/src/`):
+```bash
+./scripts/deploy-subgraph.sh
+```
+
+**Seed demo wallets** (run once after `up.sh`, or after a full wipe):
+```bash
+./scripts/seed-wallets.sh
+# Creates: Alice (CORPORATE), Bob (ENHANCED), Carol (CORPORATE),
+#          Danish (ENHANCED), Eva (BASIC/CN), Faisal (ENHANCED/PEP)
+# Funds:   10M / 5M / 8M / 2M / 500K / 3M bPKR respectively
+```
+
+**Run the full AML demo** (fires rules 1, 2, 5 and blacklist flow):
+```bash
+./scripts/aml-demo.sh
+```
+
+**Grant PEP approval** so Faisal can send transfers (required once per session after seed):
+```bash
+source .env
+cast send $REGISTRY_ADDRESS \
+  "grantPepApproval(address,uint256)" \
+  <FAISAL_ADDRESS> 5 \
+  --private-key $DEPLOYER_PK --rpc-url $RPC_URL
+```
+Faisal's address is shown in the Transfer Portal wallet list, or via `curl -s localhost:3000/wallets | jq '.[] | select(.isPEP) | .id'`.
+
+**Trigger AML rules manually via Transfer Portal** — see rule-by-rule cheat sheet below.
+
+### Keeping graph-node sync fast after a full wipe
+
+Anvil is configured with `ANVIL_BLOCK_TIME=0` (the default), which means it only mines a block when a transaction is submitted. Block numbers stay tight regardless of how much real time passes between operations — deploy at midnight, seed wallets the next morning, and the two sets of transactions are still in consecutive blocks.
+
+If `ANVIL_BLOCK_TIME` is set to a non-zero value (e.g. `2`), anvil mines an empty block every 2 seconds. An overnight gap between deploy and seed-wallets would produce ~40,000 empty blocks that graph-node must scan on every full resync — this is what causes the 30-minute wait.
+
+With the default `down.sh` (no `FULL_TEARDOWN`), graph-node resumes from its last committed block regardless of block-time, so normal restarts are always instant.
+
+### Rule trigger cheat sheet
+
+All seeded wallets are < 90 days old so **Rule 12 fires on every transfer** automatically.
+
+| Rule | Trigger | How |
+|---|---|---|
+| **1** CTR (CRITICAL) | Single transfer ≥ 2,500,000 bPKR | Transfer Portal: Alice → Bob, amount `3000000` |
+| **2** Structuring (HIGH) | 3+ transfers < 2.5M each, sum ≥ 2.5M within 24h | Transfer Portal: Bob → Carol, `900000` × 3 |
+| **9** PEP (CRITICAL) | Any outgoing from PEP wallet | Grant approval (see above), then Faisal → Alice, any amount |
+| **5** Velocity | Today's tx count > 3× 7-day baseline (baseline ≥ 5/day) | Script: 6 tx/day for 7 days then 25 in one day (requires `evm_increaseTime`) |
+| **7** Third-party | First send to non-custodial address after wallet is 30d old | `cast rpc evm_increaseTime 2678400` then Transfer Portal: send to any non-seeded address |
+| **8** Layering | Non-custodial address fans out to ≥ 3 custodial wallets in 2 blocks | Script: fund an anvil account with bPKR, then `cast send` to 3 wallets in rapid succession |
+
+Wait ~10 seconds after each set of transactions for the subgraph poller to ingest them, then refresh the dashboard.
 
 ## Endpoints
 
@@ -107,13 +198,10 @@ pnpm frontend             # start the compliance dashboard at http://localhost:5
 
 ## Tear down
 
-```
-./scripts/down.sh
-```
-
-To wipe state:
-```
-./scripts/down.sh && rm -rf infra/data .anvil-state.json
+```bash
+./scripts/down.sh                        # stop services, keep chain + graph index
+FULL_TEARDOWN=1 ./scripts/down.sh        # also wipe postgres and ipfs
+FULL_TEARDOWN=1 ./scripts/down.sh && rm -f .anvil-state.json   # full reset including chain
 ```
 
 ## Compliance Dashboard (frontend)
@@ -142,6 +230,17 @@ pnpm frontend        # start dev server (proxies /api → :3000, /subgraph → :
 - Search by wallet address
 - Customer profile card + compliance status bar
 - Transaction History and Compliance Alerts tabs (read-only)
+
+### Transfer Portal (`/transfer`) — demo transfer interface
+
+- Grid of all seeded custodial wallets (name, address, KYC tier, PEP badge)
+- Blocked wallets are greyed out and non-clickable
+- Click any wallet to open its transfer interface:
+  - Wallet profile header
+  - Recipient picker — dropdown of other active wallets plus free-text address field
+  - Amount input in bPKR (converted to base units automatically)
+  - Recent transaction history from the subgraph
+- PEP wallets (e.g. Faisal) require an on-chain approval before the backend will sign — see `grantPepApproval` in the Scripts section
 
 ## Layout
 

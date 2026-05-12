@@ -13,7 +13,7 @@ require_cmd curl
 : "${MAINNET_RPC_URL:?set MAINNET_RPC_URL in .env (Alchemy/Infura/QuickNode)}"
 : "${ANVIL_PORT:=8545}"
 : "${ANVIL_CHAIN_ID:=31337}"
-: "${ANVIL_BLOCK_TIME:=2}"
+: "${ANVIL_BLOCK_TIME:=0}"
 : "${ANVIL_HOST:=0.0.0.0}"
 
 STATE_FILE="$REPO_ROOT/.anvil-state.json"
@@ -31,7 +31,6 @@ rm -f "$PID_FILE"
 ARGS=(
   --fork-url "$MAINNET_RPC_URL"
   --chain-id "$ANVIL_CHAIN_ID"
-  --block-time "$ANVIL_BLOCK_TIME"
   --host "$ANVIL_HOST"
   --port "$ANVIL_PORT"
   --state "$STATE_FILE"
@@ -39,6 +38,12 @@ ARGS=(
   --balance 10000
   --silent
 )
+
+# ANVIL_BLOCK_TIME=0 means mine-on-demand (no periodic timer) — omit the flag.
+# Any positive value sets a fixed block interval in seconds.
+if [[ "${ANVIL_BLOCK_TIME:-0}" != "0" ]]; then
+  ARGS+=(--block-time "$ANVIL_BLOCK_TIME")
+fi
 
 log "forking mainnet via $MAINNET_RPC_URL on chain-id $ANVIL_CHAIN_ID port $ANVIL_PORT"
 

@@ -25,6 +25,10 @@ export async function fetchRiskScore(walletId: string): Promise<RiskScoreRespons
   return data
 }
 
+export async function transferFunds(fromId: string, to: string, amount: string): Promise<void> {
+  await api.post(`/wallets/${encodeURIComponent(fromId)}/transfer`, { to, amount })
+}
+
 export async function blockWallet(walletId: string, blocked: boolean): Promise<void> {
   await api.post(`/wallets/${encodeURIComponent(walletId)}/block`, null, { params: { blocked } })
 }

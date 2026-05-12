@@ -32,6 +32,15 @@ if [[ "${FORCE_DEPLOY:-0}" != "1" && -n "${REGISTRY_ADDRESS:-}" ]]; then
         "${STABLECOIN_ADDRESS:-}" \
         "${ONRAMP_ADDRESS:-}" > "$DEPLOY_FILE"
     fi
+    # Re-emit CtrThresholdChanged so a fresh subgraph indexer always catches it.
+    # graph-node silently skips historical constructor-era events on new postgres state;
+    # broadcasting a live tx guarantees the RegistryConfig entity is populated.
+    CTR=$(cast call "$REGISTRY_ADDRESS" "ctrThreshold()(uint256)" --rpc-url "$RPC_URL" 2>/dev/null | awk '{print $1}' || true)
+    if [[ -n "$CTR" && "$CTR" != "0" ]]; then
+      log "re-emitting CtrThresholdChanged (ctrThreshold=$CTR) for subgraph indexer"
+      cast send "$REGISTRY_ADDRESS" "setCtrThreshold(uint256)" "$CTR" \
+        --private-key "$DEPLOYER_PK" --rpc-url "$RPC_URL" >/dev/null
+    fi
     exit 0
   fi
 fi
