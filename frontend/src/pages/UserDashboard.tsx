@@ -4,6 +4,7 @@ import { Search, User, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 import { fetchWallet, fetchRiskScore, fetchWalletTransfers } from '../api/client'
 import { Badge, severityColor, statusColor, bandColor } from '../components/common/Badge'
 import Spinner from '../components/common/Spinner'
+import ChartsPanel from '../components/wallet/ChartsPanel'
 import { RULE_NAMES, shortAddr, formatAmount, formatTs, formatIso } from '../utils/format'
 
 const KYC_LABELS: Record<string, string> = {
@@ -23,7 +24,7 @@ const BAND_BAR: Record<string, { width: string; bg: string; text: string }> = {
 export default function UserDashboard() {
   const [input, setInput] = useState('')
   const [walletId, setWalletId] = useState<string | null>(null)
-  const [tab, setTab] = useState<'alerts' | 'txns'>('txns')
+  const [tab, setTab] = useState<'alerts' | 'txns' | 'charts'>('txns')
 
   const walletQ = useQuery({
     queryKey: ['wallet', walletId],
@@ -42,7 +43,7 @@ export default function UserDashboard() {
   const txnsQ = useQuery({
     queryKey: ['txns', walletId],
     queryFn: () => fetchWalletTransfers(walletId!),
-    enabled: !!walletId && tab === 'txns',
+    enabled: !!walletId,
   })
 
   function handleSearch(e: React.FormEvent) {
@@ -57,7 +58,7 @@ export default function UserDashboard() {
   const bar = BAND_BAR[band]
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <div className="p-6 max-w-4xl mx-auto space-y-6">
       {/* header */}
       <div>
         <h1 className="text-xl font-bold text-white">User Wallet Lookup</h1>
@@ -152,7 +153,7 @@ export default function UserDashboard() {
           {/* tabs */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
             <div className="flex border-b border-slate-800 px-5">
-              {(['txns', 'alerts'] as const).map((t) => (
+              {(['txns', 'alerts', 'charts'] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
@@ -164,7 +165,9 @@ export default function UserDashboard() {
                 >
                   {t === 'txns'
                     ? 'Transaction History'
-                    : `Compliance Alerts (${risk?.alerts?.length ?? 0})`}
+                    : t === 'alerts'
+                    ? `Compliance Alerts (${risk?.alerts?.length ?? 0})`
+                    : 'Analytics'}
                 </button>
               ))}
             </div>
@@ -180,6 +183,14 @@ export default function UserDashboard() {
               )}
               {tab === 'alerts' && (
                 <AlertsPanel alerts={risk?.alerts ?? []} />
+              )}
+              {tab === 'charts' && (
+                <ChartsPanel
+                  walletId={wallet.id}
+                  alerts={risk?.alerts ?? []}
+                  txns={txnsQ.data ?? []}
+                  txnsLoading={txnsQ.isLoading}
+                />
               )}
             </div>
           </div>
